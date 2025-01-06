@@ -22,3 +22,5 @@
 *.csv
 *.kml
 *.xls
+*.pyc
+*.cpg

@@ -82,32 +82,34 @@ def compute_max_overlap(gdf, max_num):
 
     return max_overlap_area, max_overlap_size, max_time_span
 
-directory = r'mars_mro_crism_mtrdr_c0a'
-merged_gdf = load_and_merge_shp_files(directory)[['ProductId','UTCstart','geometry']]
-# 将字符串列转换为 datetime 格式
-merged_gdf['UTCstart'] = pd.to_datetime(merged_gdf['UTCstart'])
-print("Shp File Loaded !!!\nFinding intersectiong polygons ...")
-intsec_idxs = find_overlapping_polygons(merged_gdf)
-assessment = {'ProductIds':[], 'View Num': [], 'Area(km^2)':[], 'Time Range': []}
-print("\nAssessing Intersecting Area and View Numbers")
-count_num = 0
-work_num = len(intsec_idxs)
-for set_sqc in intsec_idxs:
-    print(f"\r {count_num}/{work_num}         ", end='')
-    assessment['View Num'].append(len(set_sqc))
-    # 计算所有多边形的交集
-    intsec_gdf = merged_gdf.iloc[list(set_sqc)]
-    # Step 2: Compute the intersection of all polygons
-    max_overlap, max_overlap_size, max_time_span = compute_max_overlap(intsec_gdf, 3)
-    # Step 3: Calculate the area of the intersected region
-    assessment['Area(km^2)'].append(max_overlap.area/1e6)
-    # 将时间跨度转换为天数
-    assessment['Time Range'].append(max_time_span.days)
-    assessment['ProductIds'].append(intsec_gdf['ProductId'].values)
-    count_num += 1
+if __name__ == "__main__":
+    directory = r'mars_mro_crism_mtrdr_c0a'
+    merged_gdf = load_and_merge_shp_files(directory)[['ProductId', 'LabelURL', 'UTCstart', 'geometry']]
+    # 将字符串列转换为 datetime 格式
+    merged_gdf['UTCstart'] = pd.to_datetime(merged_gdf['UTCstart'])
+    print("Shp File Loaded !!!\nFinding intersecting polygons ...")
+    intsec_idxs = find_overlapping_polygons(merged_gdf)
+    assessment = {'ProductIds':[], 'ProductURLs':[], 'View Num': [], 'Area(km^2)':[], 'Time Range': []}
+    print("\nAssessing Intersecting Area and View Numbers")
+    count_num = 0
+    work_num = len(intsec_idxs)
+    for set_sqc in intsec_idxs:
+        print(f"\r {count_num}/{work_num}         ", end='')
+        assessment['View Num'].append(len(set_sqc))
+        # 计算所有多边形的交集
+        intsec_gdf = merged_gdf.iloc[list(set_sqc)]
+        # Step 2: Compute the intersection of all polygons
+        max_overlap, max_overlap_size, max_time_span = compute_max_overlap(intsec_gdf, 3)
+        # Step 3: Calculate the area of the intersected region
+        assessment['Area(km^2)'].append(max_overlap.area/1e6)
+        # 将时间跨度转换为天数
+        assessment['Time Range'].append(max_time_span.days)
+        assessment['ProductIds'].append(intsec_gdf['ProductId'].values)
+        assessment['ProductURLs'].append(intsec_gdf['LabelURL'].values)
+        count_num += 1
 
-# 将字典转换为DataFrame
-assessment = pd.DataFrame(assessment)
-# 保存为CSV文件
-assessment.to_csv('assessment.csv', index=False, encoding='utf-8-sig')
-print("\nDictionary has been saved to assessment.csv")
+    # 将字典转换为DataFrame
+    assessment = pd.DataFrame(assessment)
+    # 保存为CSV文件
+    assessment.to_csv('assessment.csv', index=False, encoding='utf-8-sig')
+    print("\nDictionary has been saved to assessment.csv")
