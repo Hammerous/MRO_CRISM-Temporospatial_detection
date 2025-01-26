@@ -1,16 +1,17 @@
 import os
 import geopandas as gpd
 import pandas as pd
-from itertools import combinations
+
+mars_equal_area_crs = (
+    "+proj=cea +lon_0=0 +lat_ts=0 +a=3396190 +b=3396190 +units=m +no_defs"
+    )
+
 
 def print_crs_of_shp_file(file_path):
     # 将shapefile加载到GeoDataFrame中
     gdf = gpd.read_file(file_path)
     # 打印坐标参考系统（CRS）信息
     print(gdf.crs)
-    mars_equal_area_crs = (
-    "+proj=cea +lon_0=0 +lat_ts=0 +a=3396190 +b=3396190 +units=m +no_defs"
-    )
     gdf_projected = gdf.to_crs(mars_equal_area_crs)
     print(gdf_projected.crs)
     return gdf_projected
@@ -29,87 +30,70 @@ def load_and_merge_shp_files(directory):
             gdfs.append(gdf)
 
     # 将所有GeoDataFrame合并为一个大的GeoDataFrame
-    merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
+    merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=mars_equal_area_crs)
 
     return merged_gdf
 
+target_type = ('Polygon', 'MultiPolygon')
 def find_overlapping_polygons(gdf):
-    # 初始化一个字典来存储重叠多边形的索引集合
-    intsec_idx = set()
-    # 遍历GeoDataFrame中的每个多边形
-    for idx, poly in gdf.iterrows():
-        print(f"\r{idx}         ", end='')
-        intsec_polys = gdf[gdf.intersects(poly['geometry'])]   # 找到与当前多边形相交的多边形，包括自身
-        product_Ids = set(intsec_polys['ProductId'].values)
-        # 如果存在重叠多边形，将集合添加到字典中
-        if len(product_Ids) > 1:
-            intsec_idx.add(frozenset(intsec_polys.index.tolist()))
-    return intsec_idx
-
-def compute_max_overlap(gdf, max_num):
-    """
-    计算最大公共相交区域，限制组合计算的最大数量。
+    # Initialize a list to store the unique intersection geometries
+    intersection_geometries = set()  # Using a set to automatically handle duplicates
+    # Create a spatial index to quickly find intersections
+    spatial_index = gdf.sindex
     
-    参数:
-        gdf (GeoDataFrame): 包含多边形和时间属性的 GeoDataFrame。
-        max_num (int): 组合的最大数量。
+    # Iterate through each polygon in the GeoDataFrame
+    for idx, poly in gdf.iterrows():
+        if not idx%100:
+            print(f"\r{idx}         ", end="")
         
-    返回:
-        tuple: (最大相交区域, 对应的组合数量, 最大时间跨度)
-    """
-    max_overlap_area = None
-    max_overlap_size = 0
-    max_time_span = None
-
-    for n in range(2, max_num + 1):
-        for indices in combinations(range(len(gdf)), n):
-            selected_geometries = gdf.iloc[list(indices)].geometry
-            overlap = selected_geometries.iloc[0]
-            for geom in selected_geometries.iloc[1:]:
-                overlap = overlap.intersection(geom)
-                if overlap.is_empty:
-                    break  # 如果没有交集，跳出当前组合
-            else:
-                # 如果有有效的交集
-                if max_overlap_area is None or overlap.area > max_overlap_area.area:
-                    max_overlap_area = overlap
-                    max_overlap_size = n
-                    max_time_span = gdf.iloc[list(indices)]["UTCstart"].max() - gdf.iloc[list(indices)]["UTCstart"].min()
+        # Use the spatial index to find potential intersections
+        possible_matches_index = list(spatial_index.intersection(poly['geometry'].bounds))
         
-        # 如果在当前组合大小下无交集，则返回上一次的结果
-        if max_overlap_area is None or max_overlap_area.is_empty:
-            break
+        # Filter the potential matches by checking if they actually intersect
+        intersecting_polys = gdf.iloc[possible_matches_index]
+        intersecting_polys = intersecting_polys[intersecting_polys.intersects(poly['geometry'])]
+        
+        # For each intersecting polygon, calculate the actual intersection geometry
+        for _, other_poly in intersecting_polys.iterrows():
+            # Skip if it's the same polygon (ignore self-intersection)
+            if idx == _:
+                continue
+            
+            # Get the intersection geometry between the two polygons
+            intersection_geom = poly['geometry'].intersection(other_poly['geometry'])
 
-    return max_overlap_area, max_overlap_size, max_time_span
+            # Only add non-empty and valid intersection geometries
+            if intersection_geom.is_valid and not intersection_geom.is_empty and intersection_geom.geom_type in target_type:
+                intersection_geometries.add(intersection_geom)
+    
+    # Return the list of unique intersection geometries
+    return list(intersection_geometries)
+
+def process_and_dissolve_polygons(gdf, area_threshold_km2=3.24):
+    # Calculate area of each geometry (ensure CRS is in meters for area calculation)   
+    gdf['area'] = gdf['geometry'].area / 10**6  # Area in square kilometers (since we are using meters)
+    
+    # Filter polygons based on area threshold (e.g., polygons larger than 3.24 km²)
+    filtered_gdf = gdf[gdf['area'] >= area_threshold_km2]
+    
+    return filtered_gdf
 
 if __name__ == "__main__":
     directory = r'mars_mro_crism_mtrdr_c0a'
     merged_gdf = load_and_merge_shp_files(directory)[['ProductId', 'LabelURL', 'UTCstart', 'geometry']]
-    # 将字符串列转换为 datetime 格式
     merged_gdf['UTCstart'] = pd.to_datetime(merged_gdf['UTCstart'])
-    print("Shp File Loaded !!!\nFinding intersecting polygons ...")
-    intsec_idxs = find_overlapping_polygons(merged_gdf)
-    assessment = {'ProductIds':[], 'ProductURLs':[], 'View Num': [], 'Area(km^2)':[], 'Time Range': []}
-    print("\nAssessing Intersecting Area and View Numbers")
-    count_num = 0
-    work_num = len(intsec_idxs)
-    for set_sqc in intsec_idxs:
-        print(f"\r {count_num}/{work_num}         ", end='')
-        assessment['View Num'].append(len(set_sqc))
-        # 计算所有多边形的交集
-        intsec_gdf = merged_gdf.iloc[list(set_sqc)]
-        # Step 2: Compute the intersection of all polygons
-        max_overlap, max_overlap_size, max_time_span = compute_max_overlap(intsec_gdf, 3)
-        # Step 3: Calculate the area of the intersected region
-        assessment['Area(km^2)'].append(max_overlap.area/1e6)
-        # 将时间跨度转换为天数
-        assessment['Time Range'].append(max_time_span.days)
-        assessment['ProductIds'].append(intsec_gdf['ProductId'].values)
-        assessment['ProductURLs'].append(intsec_gdf['LabelURL'].values)
-        count_num += 1
 
-    # 将字典转换为DataFrame
-    assessment = pd.DataFrame(assessment)
-    # 保存为CSV文件
-    assessment.to_csv('assessment.csv', index=False, encoding='utf-8-sig')
-    print("\nDictionary has been saved to assessment.csv")
+    print("Shp File Loaded !!!\nFinding intersecting polygons ...")
+    intersection_polygons = find_overlapping_polygons(merged_gdf)
+
+    # Optionally, create a new GeoDataFrame with the intersection geometries
+    intersection_gdf = gpd.GeoDataFrame(geometry=intersection_polygons, crs=merged_gdf.crs)
+
+    # You can now save or visualize the intersection polygons
+    intersection_gdf.to_file("intersection_polygons.shp")
+
+    # Process polygons, filter by area
+    filtered_gdf = process_and_dissolve_polygons(intersection_gdf)
+
+    # Optionally, save the results to shapefiles
+    filtered_gdf.to_file("filtered_polygons.shp")  # Polygons filtered by area
