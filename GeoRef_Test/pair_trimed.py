@@ -195,7 +195,7 @@ def apply_georeferencing(points_image,
 
     # Create an in-memory GDAL dataset to hold the input image
     mem_driver = gdal.GetDriverByName('MEM')
-    in_ds = mem_driver.Create('', width, height, num_bands, gdal.GDT_Float32)
+    in_ds = mem_driver.Create('', width, height, num_bands, gdal.GDT_Float32)       ### dtype should be consistent with original ones
 
     # Set the (placeholder) geotransform and projection
     in_ds.SetGeoTransform(original_geotransform)
@@ -420,7 +420,7 @@ def feature_matching_ORB(img1, valid_mask1, img2, valid_mask2, output_file='feat
 def main():
     # Step 1: Read the images
     img_dtm, alpha_dtm, geotransform_dtm, crs_dtm, prj_dtm = read_geotiff(r'CTX_DEM_Retrieve\clipped.tif')
-    img_crism, alpha_crism, geotransform_crism, crs_crism, prj_dtm = read_geotiff(r'CTX_DEM_Retrieve\reprojected_old.tif')
+    img_crism, alpha_crism, geotransform_crism, crs_crism, prj_crism = read_geotiff(r'CTX_DEM_Retrieve\reprojected_old.tif')
 
     # Step 2: Convert reprojected image to grayscale (using only RGB channels if RGBA)
     img_dtm_gray = cv2.cvtColor(img_dtm.transpose(1, 2, 0), cv2.COLOR_BGR2GRAY)
@@ -435,7 +435,8 @@ def main():
     # Step 4: Apply georeferencing
     #orthorectified_image, new_geotransform = apply_georeferencing_cv(points1, points2, img_crism, geotransform_dtm)
     points_map = pixel_to_geographic(points1, geotransform_dtm)
-    orthorectified_image, new_geotransform = apply_georeferencing(points2, points_map, img_crism, geotransform_dtm, prj_dtm)
+    ### Note: polynomial works bad with georeferencing, will only consider TPS method in future
+    orthorectified_image, new_geotransform = apply_georeferencing(points2, points_map, img_crism, geotransform_dtm, prj_crism)
 
     # Step 5: Save the newly orthorectified image (with or without alpha channel)
     save_georeferenced_image(r'CTX_DEM_Retrieve\orthorecitified_new.tif', orthorectified_image, new_geotransform, crs_dtm)
