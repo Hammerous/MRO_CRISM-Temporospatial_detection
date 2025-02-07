@@ -323,7 +323,7 @@ def generate_dense_keypoints(valid_mask, grid_spacing, size=8):
     return keypoints
 
 def feature_matching_denseSIFT(img1, valid_mask1, img2, valid_mask2,
-                               grid_spacing=8,
+                               grid_spacing=8, Layers=10,
                                output_file_name='feature_matches_SIFT_dense',
                                ratio_threshold=0.7, ransac_reproj_threshold=10.0):
     """
@@ -349,7 +349,7 @@ def feature_matching_denseSIFT(img1, valid_mask1, img2, valid_mask2,
     # Note: In Dense SIFT, detection is replaced by grid sampling.
     sift = cv2.SIFT_create(
         nfeatures=0,
-        nOctaveLayers=10,
+        nOctaveLayers=Layers,
         contrastThreshold=0.01,
         sigma=1.6
     )
@@ -368,7 +368,7 @@ def feature_matching_denseSIFT(img1, valid_mask1, img2, valid_mask2,
         raise ValueError("Descriptor computation failed for one or both images.")
     
     # Set up FLANN-based matcher.
-    index_params = dict(algorithm=1, trees=8)
+    index_params = dict(algorithm=1, trees=5)
     search_params = dict(checks=500)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     
@@ -403,13 +403,16 @@ def feature_matching_denseSIFT(img1, valid_mask1, img2, valid_mask2,
     
     # Optionally draw and save the matches.
     if output_file_name:
-        img1_keypoints = cv2.drawKeypoints(img1, kp1, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        img2_keypoints = cv2.drawKeypoints(img2, kp2, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-        # Save the images with keypoints
-        cv2.imwrite(output_file_name+'_1.png', img1_keypoints)
-        cv2.imwrite(output_file_name+'_2.png', img2_keypoints)
+        # img1_keypoints = cv2.drawKeypoints(img1, kp1, filtered_matches, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # img2_keypoints = cv2.drawKeypoints(img2, kp2, filtered_matches, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # # Save the images with keypoints
+        # cv2.imwrite(output_file_name+'_1.png', img1_keypoints)
+        # cv2.imwrite(output_file_name+'_2.png', img2_keypoints)
     
+        img_matches = cv2.drawMatches(img1, kp1, img2, kp2, filtered_matches, None,
+                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imwrite(output_file_name+'.png', img_matches)
+
     print(f"Final number of matches after RANSAC filtering: {points1.shape[0]}")
     return points1, points2
 
@@ -518,16 +521,146 @@ def feature_matching_dense_multi(img1, valid_mask1, img2, valid_mask2,
     if output_file_name:
         # Draw all keypoints (for visualization of grid sampling).
         img1_keypoints = cv2.drawKeypoints(img1, kp1, None,
-                                           flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                                           flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         img2_keypoints = cv2.drawKeypoints(img2, kp2, None,
-                                           flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                                           flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         cv2.imwrite(output_file_name+'_img1_keypoints.png', img1_keypoints)
         cv2.imwrite(output_file_name+'_img2_keypoints.png', img2_keypoints)
     
     print(f"Final number of matches after RANSAC filtering: {final_points1.shape[0]}")
     return final_points1, final_points2
 
-def georeferencing(result_path, base_img_path, warp_img_path, warp_rgb):
+def get_elevations_gdal(coords: np.ndarray, dtm_path: str) -> np.ndarray:
+    """
+    Retrieve elevation values from a DTM using vectorized processing.
+    
+    Parameters:
+    dtm_path (str): Path to the DTM .tif file.
+    coords (numpy.ndarray): Nx2 array of geographic coordinates (longitude, latitude).
+    
+    Returns:
+    numpy.ndarray: Array of elevation values corresponding to input coordinates.
+    """
+    # Open the dataset
+    dataset = gdal.Open(dtm_path)
+    if dataset is None:
+        raise FileNotFoundError(f"Unable to open DTM file: {dtm_path}")
+    
+    # Get geotransform and raster band
+    transform = dataset.GetGeoTransform()
+    band = dataset.GetRasterBand(1)
+    
+    # Read the raster data as a NumPy array
+    elevation_data = band.ReadAsArray()
+    
+    # Compute pixel indices
+    x_coords = ((coords[:, 0] - transform[0]) / transform[1]).astype(int)
+    y_coords = ((coords[:, 1] - transform[3]) / transform[5]).astype(int)
+    
+    # Ensure indices are within bounds
+    rows, cols = elevation_data.shape
+    valid_mask = (x_coords >= 0) & (x_coords < cols) & (y_coords >= 0) & (y_coords < rows)
+    
+    # Retrieve elevation values using vectorized indexing
+    elevations = np.full((coords.shape[0],1), np.nan)  # Default NaN for out-of-bounds points
+    elevations[valid_mask,0] = elevation_data[y_coords[valid_mask], x_coords[valid_mask]]
+    
+    return elevations
+
+def apply_georeferencing(in_ds, points_image, points_map, elevation, new_prj, result_path, resample=gdal.GRA_Lanczos, compression='LZW', num_threads='ALL_CPUS'):
+    """
+    Use GDAL's GCP-based warping to georeference an image based on matched control points.
+    Splits GCPs into 80% for warping, and 20% for verification, ensuring an approximately even
+    spatial distribution across the image.
+
+    :param in_ds: GDAL dataset (from gdal.Open()) representing the raster image.
+    :param points_image: An Nx2 array (or list) of pixel coordinates [(px, py), ...] in the image.
+    :param points_map: An Nx2 array (or list) of map coordinates [(mx, my), ...] corresponding
+                       to the pixel coordinates.
+    :param new_prj: The projection for the output dataset (e.g., 'EPSG:4326').
+    :param result_path: Path to save the georeferenced result.
+    :param resample: Resampling algorithm (eg. gdal.GRA_NearestNeighbour/gdal.GRA_Lanczos)
+    :param compression: The compression method (default is 'LZW') for output file.
+    :param num_threads: Number of threads for parallel processing, or 'ALL_CPUS' to use all 
+                        available CPUs (default is 'ALL_CPUS').
+    :param grid_size: The number of grid cells along each axis for splitting points into 
+                      warp/verify subsets evenly across the image (default = 5).
+    :return: None
+    """
+    points_image = np.asarray(points_image, dtype=np.float64)  # shape: (N, 2) with columns [px, py]
+    points_map   = np.asarray(points_map, dtype=np.float64)
+    combined = np.hstack([points_image, points_map, elevation])
+    gcps_warp = [gdal.GCP(mx, my, mz, px, py) for px, py, mx, my, mz in combined]
+    # gcps_warp = [gdal.GCP(float(mx), float(my), 0.0, float(px), float(py))
+    #         for (px, py), (mx, my) in zip(points_image, points_map)]
+
+    # Assign GCPs (warp subset) and set the coordinate system
+    print(in_ds.GetGeoTransform())
+    in_ds.SetGCPs(gcps_warp, new_prj)
+
+    # Define warp options
+    warp_options = gdal.WarpOptions(
+        dstSRS=new_prj,                     # Output spatial reference system
+        format='GTiff',                     # Output as GeoTIFF
+        tps=True,                           # Use thin plate spline transformation
+        errorThreshold=0.0,                 # Lower error threshold for better accuracy (in pixels)
+        warpMemoryLimit=1024,               # Working buffer size (in MB)
+        resampleAlg=resample,       # Resampling algorithm
+        creationOptions=['COMPRESS=' + compression, f'NUM_THREADS={num_threads}'],
+        multithread=True
+    )
+
+    # Perform the warp and save the result
+    try:
+        gdal.Warp(result_path, in_ds, options=warp_options)
+    except Exception as e:
+        print(f"Error during warp operation: {e}")
+        return
+    
+    print(in_ds.GetGeoTransform())
+    output_ds = gdal.Open(result_path)
+    geo_transform = output_ds.GetGeoTransform()
+    print(geo_transform)
+    if geo_transform is None:
+        print("GeoTransform could not be retrieved from the warped dataset.")
+        return
+
+    residuals = []
+    for gcp in gcps_warp:
+        # The original map coords
+        mx, my = gcp.GCPX, gcp.GCPY
+
+        # Convert map coords -> pixel/line in the warped image
+        #   px = (mx - gt[0]) / gt[1]
+        #   py = (my - gt[3]) / gt[5]
+        px_warped = (mx - geo_transform[0]) / geo_transform[1]
+        py_warped = (my - geo_transform[3]) / geo_transform[5]
+
+        # The original pixel coords for this check GCP
+        px_orig = gcp.GCPPixel
+        py_orig = gcp.GCPLine
+
+        # Residual in pixel space
+        px_diff = px_orig - px_warped
+        py_diff = py_orig - py_warped
+        residuals.append(np.sqrt(px_diff**2 + py_diff**2))
+
+    if len(residuals) == 0:
+        print("No points in the verification subset. Cannot compute accuracy.")
+        return
+
+    avg_residual = np.mean(residuals)
+    max_residual = np.max(residuals)
+
+    print(f"Number of GCPs used for warping: {len(gcps_warp)}")
+    #print(f"Number of GCPs used for checking: {len(gcps_check)}")
+    print(f"Average residual error (check subset) = {avg_residual:.2f} pixels")
+    print(f"Max residual error (check subset) = {max_residual:.2f} pixels")
+
+    # Cleanup
+    del in_ds, output_ds
+
+def georeferencing(result_path, base_img_path, warp_img_path, base_dtm_path, warp_rgb):
     # Step 1: Read the images
     img1_gray, img1_alpha, base_img = pair.process_geotiff(base_img_path, warp_rgb)
     img2_gray, img2_alpha, img2prj = pair.process_geotiff(warp_img_path, warp_rgb)
@@ -537,26 +670,35 @@ def georeferencing(result_path, base_img_path, warp_img_path, warp_rgb):
     # Step 2: Feature matching
     #points1, points2 = feature_matching_SIFT_dense(img1_gray, img1_alpha, img2_gray, img2_alpha)
     #points1, points2 = feature_matching_DAISY(img1_gray, img1_alpha, img2_gray, img2_alpha)
-    #points1, points2 = feature_matching_denseSIFT(img1_gray, img1_alpha, img2_gray, img2_alpha, output_file_name=None ,grid_spacing=2)
-    points1, points2 = feature_matching_dense_multi(img1_gray, img1_alpha, img2_gray, img2_alpha, output_file_name=None ,grid_spacing=2)
+    points1, points2 = feature_matching_denseSIFT(img1_gray, img1_alpha, img2_gray, img2_alpha, grid_spacing=2)
+    #points1, points2 = feature_matching_dense_multi(img1_gray, img1_alpha, img2_gray, img2_alpha, grid_spacing=4)
     del img1_gray, img1_alpha, img2_gray, img2_alpha
 
     # Step 3: Apply georeferencing and save
     points_map = pair.pixel_to_geographic(points1, base_img.GetGeoTransform())
-    pair.apply_georeferencing(img2prj, points2,\
-                        points_map, base_img.GetProjection(), result_path,\
-                        resample=gdal.GRA_NearestNeighbour)
+    import pandas as pd
+    df = pd.DataFrame(np.hstack((points2, pair.pixel_to_geographic(points2, img2prj.GetGeoTransform()), points1, points_map)),\
+                                 columns=['p0x','p0y', 'm0x','m0y', 'p1x','p1y', 'm1x','m1y'])
+    df.to_csv("GCPs.csv", encoding='UTF8', index=False)
+    pair.apply_georeferencing(img2prj, points2, points_map,\
+                    base_img.GetProjection(), result_path,\
+                    resample=gdal.GRA_NearestNeighbour)
+    # elevation = get_elevations_gdal(points_map,base_dtm_path)
+    # apply_georeferencing(img2prj, points2, points_map, elevation,\
+    #                     base_img.GetProjection(), result_path,\
+    #                     resample=gdal.GRA_NearestNeighbour)
 
 if __name__ == "__main__":
     base_img_path = r'CTX_DEM_Retrieve\ortho_clipped.tif'
+    base_dtm_path = r'CTX_DEM_Retrieve\tif\K06_055567_1983_XN_18N283W__K05_055501_1983_XN_18N283W_dtm.tif'
     warp_img_path = r'Playground\frt000161ef_07_sr167j_mtr3.img'
 
-    base_img_path = r'CTX_DEM_Retrieve\ortho_clipped_2.tif'
-    warp_img_path = r'Playground\frt000174f4_07_sr166j_mtr3.img'
+    # base_img_path = r'CTX_DEM_Retrieve\ortho_clipped_2.tif'
+    # warp_img_path = r'Playground\frt000174f4_07_sr166j_mtr3.img'
 
     # base_img_path = r'Playground\frt000161ef_07_sr167j_mtr3.img'
     # warp_img_path = r'Playground\frt000174f4_07_sr166j_mtr3.img'
 
     warp_rgb = ('R2529', 'R1506', 'R1080')
-    result_path = r'CTX_DEM_Retrieve\orthorecitified_test3_2.tif'
-    georeferencing(result_path, base_img_path, warp_img_path, warp_rgb)
+    result_path = r'CTX_DEM_Retrieve\orthorecitified_test3_1.tif'
+    georeferencing(result_path, base_img_path, warp_img_path, base_dtm_path, warp_rgb)
