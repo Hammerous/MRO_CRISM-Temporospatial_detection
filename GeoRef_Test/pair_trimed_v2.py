@@ -1,7 +1,7 @@
 import cv2, os
 import numpy as np
 from osgeo import osr, gdal
-from dense_pairing import feature_matching_denseSIFT
+from GeoRef_Test.dense_pairing import feature_matching_denseSIFT
 
 def process_geotiff(image_path, rgb_bands=None):
     # Open the dataset using GDAL.
@@ -447,17 +447,18 @@ def georeferencing(result_path, base_img_path, warp_img_path, warp_rgb):
                                                 ,Layers=10, grid_spacing=4)
     del img1_gray, img1_alpha, img2_gray, img2_alpha
     img2prj, points2 = apply_affinetransform(points1, points2, img2prj, base_img.GetProjection(), base_img.GetGeoTransform())
-    visualize_distances(pixel_to_geographic(points1, base_img.GetGeoTransform()),\
-                        pixel_to_geographic(points2, img2prj.GetGeoTransform()),\
-                        output_dir=r'CTX_DEM_Retrieve\fig', num_directions=36, top_num=50)
+    # visualize_distances(pixel_to_geographic(points1, base_img.GetGeoTransform()),\
+    #                     pixel_to_geographic(points2, img2prj.GetGeoTransform()),\
+    #                     output_dir=r'CTX_DEM_Retrieve\fig', num_directions=36, top_num=50)
     save_gdal_dataset(img2prj, result_path+'_Affine.tif')
+    save_gdal_dataset(base_img, result_path+'_Base.tif')
     # Step 3: Apply georeferencing and save
     # points_map = pixel_to_geographic(points1, base_img.GetGeoTransform())
     # points_map2 = pixel_to_geographic(points2, img2prj.GetGeoTransform())
     # residuals = np.linalg.norm(points_map - points_map2, axis=1)
     # rmse = np.sqrt(np.mean(residuals**2))
     # print(rmse)
-    apply_georeferencing(img2prj, points2, pixel_to_geographic(points1, base_img.GetGeoTransform()), result_path+'.tif')
+    # apply_georeferencing(img2prj, points2, pixel_to_geographic(points1, base_img.GetGeoTransform()), result_path+'.tif')
 
 if __name__ == "__main__":
     base_img_path = r'CTX_DEM_Retrieve\ortho_clipped.tif'

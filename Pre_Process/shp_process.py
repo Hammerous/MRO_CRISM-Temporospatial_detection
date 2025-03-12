@@ -3,9 +3,9 @@ import geopandas as gpd
 import pandas as pd
 from itertools import combinations
 
-def print_crs_of_shp_file(file_path):
+def print_crs_of_shp_file(file_path, cols):
     # 将shapefile加载到GeoDataFrame中
-    gdf = gpd.read_file(file_path)
+    gdf = gpd.read_file(file_path, columns=cols)
     # 打印坐标参考系统（CRS）信息
     print(gdf.crs)
     mars_equal_area_crs = (
@@ -15,7 +15,7 @@ def print_crs_of_shp_file(file_path):
     print(gdf_projected.crs)
     return gdf_projected
 
-def load_and_merge_shp_files(directory):
+def load_and_merge_shp_files(directory, cols):
     # 初始化一个空列表来存储每个GeoDataFrame
     gdfs = []
 
@@ -23,7 +23,7 @@ def load_and_merge_shp_files(directory):
     for filename in os.listdir(directory):
         if filename.endswith('.shp'):
             # 将shapefile加载到GeoDataFrame中
-            gdf = print_crs_of_shp_file(os.path.join(directory, filename))
+            gdf = print_crs_of_shp_file(os.path.join(directory, filename), cols)
             #gdf = gpd.read_file(os.path.join(directory, filename))
             # 将GeoDataFrame添加到列表中
             gdfs.append(gdf)
@@ -45,6 +45,7 @@ def find_overlapping_polygons(gdf):
         if len(product_Ids) > 1:
             intsec_idx.add(frozenset(intsec_polys.index.tolist()))
     return intsec_idx
+
 
 def compute_max_overlap(gdf, max_num):
     """
@@ -84,7 +85,7 @@ def compute_max_overlap(gdf, max_num):
 
 if __name__ == "__main__":
     directory = r'mars_mro_crism_mtrdr_c0a'
-    merged_gdf = load_and_merge_shp_files(directory)[['ProductId', 'LabelURL', 'UTCstart', 'geometry']]
+    merged_gdf = load_and_merge_shp_files(directory, ['ProductId', 'LabelURL', 'UTCstart', 'geometry'])
     # 将字符串列转换为 datetime 格式
     merged_gdf['UTCstart'] = pd.to_datetime(merged_gdf['UTCstart'])
     print("Shp File Loaded !!!\nFinding intersecting polygons ...")

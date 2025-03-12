@@ -2,6 +2,7 @@ import os
 import rasterio
 from rasterio.windows import from_bounds
 import numpy as np
+from osgeo import gdal
 
 # Define the folder containing the .img files
 input_folder = "Playground"
@@ -9,7 +10,7 @@ output_file = "overlapping_area_geotiff.tif"
 
 # Step 1: Read in all files and extract their geographic coverage in the first band
 def read_rasters(input_folder):
-    raster_files = [os.path.join(input_folder, f) for f in os.listdir(input_folder) if f.endswith('.img')]
+    raster_files = [os.path.join(input_folder, f) for f in os.listdir(input_folder) if (f.endswith('.img') or f.endswith('.tif'))]
     rasters = []
     for file in raster_files:
         src = rasterio.open(file)
@@ -31,6 +32,7 @@ def find_common_extent(rasters):
 # Step 3: Stack all trimmed layers with the same spatial extent
 def stack_trimmed_layers(rasters, common_extent):
     data_stack = []
+    band_names = []  # List to store band descriptions
     meta = rasters[0].meta.copy()
 
     # Calculate new dimensions and transform for the common extent
@@ -40,28 +42,36 @@ def stack_trimmed_layers(rasters, common_extent):
         height=int((common_extent[3] - common_extent[1]) / -meta['transform'][4])
     )
 
+    # Process each raster
     for raster in rasters:
-        # Clip each raster to the common extent
-        window = from_bounds(*common_extent, transform=raster.transform)
-        data = raster.read(1, window=window, boundless=True)
+        # Define the window to clip the raster to the common extent
+        window = rasterio.windows.from_bounds(*common_extent, transform=raster.transform)
         
-        # Replace no-data values with NaN
-        nodata_value = raster.nodatavals[0] if raster.nodatavals else None
-        if nodata_value is not None:
-            data[data == nodata_value] = np.nan
-
+        # Read all bands at once with masking for no-data and out-of-bounds areas
+        data = raster.read(window=window, boundless=True, masked=True)
+        
+        # Convert masked array to a regular array with NaN for masked values
+        data = data.filled(np.nan)
+        
+        # Append the 3D array (bands x height x width) to the stack
         data_stack.append(data)
+        
+        raster_affix = os.path.basename(raster.name).split(".")[0].split("_")[-1]
+        descriptions = raster.descriptions if raster.descriptions and any(raster.descriptions) else [f"Band {i+1}" for i in range(raster.count)]
+        band_names.extend([f"{desc}_{raster_affix}" for desc in descriptions])
+
+    # Combine all bands from all rasters into a single 3D array
+    stacked_data = np.concatenate(data_stack, axis=0)
 
     # Update metadata for the output GeoTIFF
     meta.update({
         'driver': 'GTiff',
-        'height': data_stack[0].shape[0],
-        'width': data_stack[0].shape[1],
+        'height': stacked_data.shape[1],
+        'width': stacked_data.shape[2],
         'transform': transform,
-        'count': len(data_stack),  # Number of bands
+        'count': stacked_data.shape[0],  # Total number of bands across all rasters
     })
-
-    return np.stack(data_stack, axis=0), meta
+    return stacked_data, meta, band_names
 
 # Step 4: Trim the commonly covered pixels (set all no-data pixels to no-data in the stack)
 def trim_no_data(stack, nodata_value):
@@ -73,17 +83,24 @@ def trim_no_data(stack, nodata_value):
 def main(input_folder, output_file):
     rasters = read_rasters(input_folder)
     common_extent = find_common_extent(rasters)
-    stack, meta = stack_trimmed_layers(rasters, common_extent)
+    stack, meta, band_names = stack_trimmed_layers(rasters, common_extent)  # Now returns band_names
 
     # Set nodata value for all bands (preserve consistency)
     nodata_value = meta.get('nodata', 65535)  # Default to 65535 if not defined
     stack = trim_no_data(stack, nodata_value=nodata_value)
 
     # Save the trimmed and stacked layers to a new GeoTIFF
-    meta.update({'nodata': nodata_value})
+    meta.update({})
+    # Update metadata with compression and multi-threading options
+    meta.update({
+        'compress': 'LZW',       # Use a supported compression method
+        'NUM_THREADS': 'ALL_CPUS',    # Use all available CPU cores for compression
+        'nodata': nodata_value
+    })
     with rasterio.open(output_file, 'w', **meta) as dst:
         for i in range(stack.shape[0]):
             dst.write(stack[i], i + 1)
+            dst.set_band_description(i + 1, band_names[i])  # Set the band description
 
     print(f"GeoTIFF saved to {output_file}")
 

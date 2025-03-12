@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from osgeo import gdal
-import pairing_sequence as pair
+import GeoRef_Test.pairing_sequence as pair
 
 def feature_matching_SIFT_dense(
     img1, 

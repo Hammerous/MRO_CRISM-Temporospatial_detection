@@ -31,3 +31,4 @@
 *.enp
 Code_Reference/*
 GeoRef_Test/SGPN/*
+*.json
