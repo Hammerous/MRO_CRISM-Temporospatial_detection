@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from shp_process import print_crs_of_shp_file
+from Toolbox.shp_process import print_crs_of_shp_file
 
 ass_df = pd.read_csv('assessment.csv')
 productId_set = set()

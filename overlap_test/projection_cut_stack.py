@@ -1,6 +1,5 @@
 import os
 import rasterio
-from rasterio.windows import from_bounds
 import numpy as np
 from osgeo import gdal
 
