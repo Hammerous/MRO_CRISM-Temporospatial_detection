@@ -103,7 +103,7 @@ def convert_pid(str):
 def find_convert_raster(folder_path, img_Id):
     img_Id = convert_pid(img_Id)
     img_path = os.path.join(folder_path, img_Id+".img")
-    return raster_to_polygons(img_path, 54)
+    return raster_to_polygons(img_path, 1)
 
 def convex_filter(gdf, threshold=0.75):
     # Compute convex hulls for all geometries in one step

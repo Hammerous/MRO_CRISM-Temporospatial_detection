@@ -37,16 +37,15 @@ def find_best_stacks(input_shp):
 
         while gdf.shape[0] > 1:
             overlap = shp.com_overlap(gdf.geometry)
-            if not weighted_dgs:  # Ensure dictionary is not empty before calling min()
-                raise ValueError("Node Dict not correspond to GeoDataframe Data")
             min_idx = min(weighted_dgs, key=weighted_dgs.get)
-            if overlap.area > minimun_area and shp.length_to_width(overlap, threshold=5):
+            if overlap.area > minimun_area and shp.length_to_width(overlap, threshold=5) and overlap.geom_type == 'Polygon':
                 max_pid = gdf.loc[max_idx]['ProductId']
                 if output_folder:
                     output_shp_path = os.path.join(output_folder, os.path.basename(input_shp))
                     new_gdf = gpd.GeoDataFrame({"Base Id": [max_pid]}, geometry=[overlap], crs=gdf.crs)
                     new_gdf.to_file(output_shp_path)
-                return f"{shp.convert_pid(max_pid)} " + ",".join([shp.convert_pid(pid) for pid in gdf.drop(index=max_idx)['ProductId'].to_list()])
+                return f"{os.path.basename(input_shp).split('.')[0]} {shp.convert_pid(max_pid)} " +\
+                        ",".join([shp.convert_pid(pid) for pid in gdf.drop(index=max_idx)['ProductId'].to_list()])
             else:
                 gdf.drop(index=min_idx, inplace=True)
                 weighted_dgs.pop(min_idx, None)  # Remove from dictionary if it exists

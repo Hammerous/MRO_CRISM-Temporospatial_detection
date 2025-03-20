@@ -31,4 +31,9 @@
 *.enp
 Code_Reference/*
 GeoRef_Test/SGPN/*
+Dust_Storm_Database/*
 *.json
+*.ed1
+*.qtr
+*.eq1
+*.ebb

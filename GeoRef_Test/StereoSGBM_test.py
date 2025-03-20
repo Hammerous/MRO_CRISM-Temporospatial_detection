@@ -96,6 +96,7 @@ def stereo_match_original_vs_scaled(
     left_img, left_mask,
     right_img, right_mask,
     output_disparity_path,
+    input_image_path,
     output_matched_image_path
 ):
     """
@@ -133,7 +134,7 @@ def stereo_match_original_vs_scaled(
         uniquenessRatio=15,
         speckleWindowSize=100,
         speckleRange=32,
-        mode=cv2.MODE_HH 
+        #mode=cv2.MODE_HH 
     )
 
     # Compute the disparity in 16-bit signed format, then convert to float
@@ -169,17 +170,18 @@ def stereo_match_original_vs_scaled(
     #    We use the same shape as left_img, so right_img was already resized
     matched_img = warp_right_image_using_disparity(left_img, right_img_resized, disparity_float)
     cv2.imwrite(output_matched_image_path, matched_img)
+    cv2.imwrite(input_image_path, left_img)
     print(f"Matched (warped) right image saved to: {output_matched_image_path}")
 
 
 if __name__ == "__main__":
-    base_img_path = r'CTX_DEM_Retrieve\ortho_clipped.tif'
-    base_dtm_path = r'CTX_DEM_Retrieve\tif\K06_055567_1983_XN_18N283W__K05_055501_1983_XN_18N283W_dtm.tif'
-    warp_img_path = r'Playground\frt000161ef_07_sr167j_mtr3.img'
+    base_img_path = r'Clipped_Images\19-0\frt0000824e_07_sr163j_mtr3.img'
+    warp_img_path = r'Round2\19-0\frt00007560_07_sr163j_mtr3.img'
     warp_rgb = ('R2529', 'R1506', 'R1080')
     img1_gray, img1_alpha, base_img = pair.process_geotiff(base_img_path, warp_rgb)
     img2_gray, img2_alpha, img2prj = pair.process_geotiff(warp_img_path, warp_rgb)
     # Example usage
     stereo_match_original_vs_scaled(img1_gray, img1_alpha, img2_gray, img2_alpha,\
                              output_disparity_path="disparity_result.png",
+                            input_image_path="matched_left.png",
                             output_matched_image_path="matched_right.png")

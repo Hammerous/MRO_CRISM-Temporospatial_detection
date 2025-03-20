@@ -2,7 +2,7 @@ import os
 import shutil
 
 # Define source and destination folders
-source_folder = r"IMG2SHP\Less Views"
+source_folder = r"IMG2SHP"
 destination_folder = r"IMG2SHP\Diff CRS"
 
 # Ensure destination folder exists
