@@ -5,6 +5,7 @@ from osgeo import gdal, ogr
 from shapely.geometry import Polygon
 from shapely.wkt import loads
 from shapely.ops import unary_union
+from .file_manage import convert_pid
 
 def open_shp(file_path, cols):
     return gpd.read_file(file_path, columns=cols)
@@ -94,11 +95,6 @@ def raster_to_polygons(img_path, band_num=1):
     del band, raster_dataset, output_ds
 
     return dissolved_polygon, srs.ExportToWkt()
-
-def convert_pid(str):
-    str = str.split("_")
-    str[-2] = str[-2].replace("if", "sr")
-    return "_".join(str)
 
 def find_convert_raster(folder_path, img_Id):
     img_Id = convert_pid(img_Id)

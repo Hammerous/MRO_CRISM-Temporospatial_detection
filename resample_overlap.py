@@ -3,7 +3,7 @@ import Toolbox.raster_manipulate as rst
 import multiprocessing as mp
 from tqdm import tqdm
 
-pair_txt = 'merged_2.txt'
+pair_txt = 'CRISM_Metadata_Database.txt'
 trg_dir = "Round2"
 src_dir = "MRTR_Clipped"
 os.makedirs(trg_dir, exist_ok=True)
@@ -13,7 +13,7 @@ def worker(args):
     The worker function is defined at the module level, making it pickleable. 
     This function simply unpacks the arguments from the tuple and calls rst.shp_cut_raster
     """
-    return rst.resample(*args)
+    return rst.align_raster(*args)
 
 if __name__ == "__main__":
     task_lst = []
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                              for warp_img in warp_img_lst.split(",")])
 
     # Parallel processing with a progress bar
-    with tqdm(total=len(task_lst), desc="Clipping", unit="img") as pbar:
+    with tqdm(total=len(task_lst), desc="Aligning Raster", unit="img") as pbar:
         with mp.Pool(processes=mp.cpu_count()) as pool:
             for _ in pool.imap_unordered(worker, task_lst):
                 pbar.update(1)

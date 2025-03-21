@@ -155,25 +155,36 @@ def shp_cut_raster(shp_path, raster_path, output_path):
 
     raster_ds = None  # Close dataset
 
-def resample(base_rst, resample_rst, output):
-    base_rst = gdal.Open(base_rst)
-    projection = base_rst.GetProjection()
-    x_size = base_rst.RasterXSize
-    y_size = base_rst.RasterYSize
+def align_raster(base_rst, resample_rst, output):
+    # Open the reference raster
+    reference_ds = gdal.Open(base_rst)
+    reference_proj = reference_ds.GetProjection()  # Projection
+    reference_geotrans = reference_ds.GetGeoTransform()  # Geotransform
+    reference_width = reference_ds.RasterXSize  # Width in pixels
+    reference_height = reference_ds.RasterYSize  # Height in pixels
 
-    # Resample using gdal.Warp
-    gdal.Warp(output, resample_rst, 
-            width=x_size, height=y_size,
-            dstSRS=projection, 
-            resampleAlg=gdal.GRA_Lanczos)  # Change resampling method as needed
+    # Align the target raster using gdal.Warp
+    gdal.Warp(
+        output,  # Output file
+        resample_rst,  # Input file
+        dstSRS=reference_proj,  # Set projection to match reference
+        outputBounds=[reference_geotrans[0], 
+                    reference_geotrans[3] + reference_geotrans[5] * reference_height, 
+                    reference_geotrans[0] + reference_geotrans[1] * reference_width, 
+                    reference_geotrans[3]],  # Match extent
+        xRes=reference_geotrans[1],  # Match pixel width
+        yRes=abs(reference_geotrans[5]),  # Match pixel height
+        resampleAlg=gdal.GRA_Lanczos,
+        options=['COMPRESS=LZW', 'NUM_THREADS=ALL_CPUS']
+    )
 
-def change_detect(img1_path, img2_path, output_path):
+def change_detect(base_img_path, img2_path, output_path, method="PER"):
     """
     Perform change detection between two multi-band images and save the percentage difference.
     Only pixels with valid values in both images (and where img1 != 0) are computed.
     
     Parameters:
-        img1_path (str): Path to the first image (baseline).
+        base_img_path (str): Path to the first image (baseline).
         img2_path (str): Path to the second image (comparison).
         output_path (str): Path to save the output raster.
     
@@ -181,7 +192,7 @@ def change_detect(img1_path, img2_path, output_path):
         None (saves output raster to file)
     """
     # Open datasets
-    ds1 = gdal.Open(img1_path)
+    ds1 = gdal.Open(base_img_path)
     ds2 = gdal.Open(img2_path)
     
     if ds1 is None or ds2 is None:
@@ -205,6 +216,10 @@ def change_detect(img1_path, img2_path, output_path):
     out_ds = driver.Create(output_path, cols, rows, num_bands1, gdal.GDT_Float32)
     out_ds.SetGeoTransform(geotransform)
     out_ds.SetProjection(projection)
+
+    scale = 1.0
+    if method == "PER":
+        scale = 100.0
     
     for band_idx in range(1, num_bands1 + 1):  # GDAL bands are 1-based
         band1 = ds1.GetRasterBand(band_idx)
@@ -228,8 +243,8 @@ def change_detect(img1_path, img2_path, output_path):
         # Initialize output array with NaN
         percentage_change = np.full(arr1.shape, np.nan, dtype=np.float32)
         
-        # Compute percentage change where valid
-        percentage_change[valid_mask] = 100.0 * (arr2[valid_mask] - arr1[valid_mask]) / arr1[valid_mask]
+        # Compute change where valid
+        percentage_change[valid_mask] = scale * (arr2[valid_mask] - arr1[valid_mask]) / arr1[valid_mask]
         
         # Write to output raster
         out_band = out_ds.GetRasterBand(band_idx)
@@ -239,4 +254,3 @@ def change_detect(img1_path, img2_path, output_path):
     
     # Close datasets
     ds1, ds2, out_ds = None, None, None
-    print(f"Change detection results saved to {output_path}")
