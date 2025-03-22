@@ -6,6 +6,9 @@ txt_path = "merged.txt"
 shp_path = r"mars_mro_crism_mtrdr_c0a\mars_mro_crism_mtrdr_c0a.shp"
 output_dir = "CRISM_Metadata_Database"
 
+target_cols = ['ProductId','CenterLat','CenterLon','MaxLat','MinLat','EastLon','WestLon',
+               'EmAngle','InAngle','PhAngle','SolLong','UTCstart']
+
 if __name__ == "__main__":
    # Step 1: Read the TXT file and process it into a DataFrame
     lines = []
@@ -21,11 +24,11 @@ if __name__ == "__main__":
     df_groups = df_groups.melt(var_name='GroupID', value_name='ProductId').dropna()
     
     # Step 2: Read the shapefile with GeoPandas
-    gdf = gpd.read_file(shp_path)
+    gdf = gpd.read_file(shp_path, columns=target_cols)[target_cols]
     
     # Merge the attributes from the shapefile to df_groups based on 'ProductId'
     merged_df = df_groups.merge(gdf, on='ProductId', how='left')
-    merged_df.drop(columns=['geometry'], inplace=True)
+    #merged_df.drop(columns=['geometry'], inplace=True)
     # Step 3: Re-arrange each group dataframe by 'UTCstart'
     if 'UTCstart' in merged_df.columns:
         merged_df = merged_df.sort_values(by='UTCstart')
@@ -35,9 +38,10 @@ if __name__ == "__main__":
     lines = []
     for group_id, group_df in merged_df.groupby('GroupID'):
         group_df.drop(columns=['GroupID'], inplace=True)
-        group_df.to_csv(f"{output_dir}/{group_id}.csv", index=False)
-
         product_ids = [convert_pid(pid) for pid in group_df['ProductId'].values.tolist()]
+        group_df['ProductId'] = product_ids
+        group_df.to_csv(f"{output_dir}/{group_id}.csv", index=False)
+        
         frt_ids = [pid for pid in product_ids if pid.startswith("frt")]
         if frt_ids:
             other_ids = [pid for pid in product_ids if not pid.startswith("frt")]  # Handle different prefixes

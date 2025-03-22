@@ -254,3 +254,37 @@ def change_detect(base_img_path, img2_path, output_path, method="PER"):
     
     # Close datasets
     ds1, ds2, out_ds = None, None, None
+
+def freq_summary(img_path):
+    # Open dataset
+    ds = gdal.Open(img_path)
+    if ds is None:
+        raise IOError("Input image could not be opened.")
+    stats_list = []
+    # Iterate over each band
+    for band_idx in range(1, ds.RasterCount + 1):
+        band = ds.GetRasterBand(band_idx)
+        band_data = band.ReadAsArray()
+        band_name = band.GetDescription()
+        if band_data is None:
+            stats_list.append([None] * 8)
+            continue
+        nodata_value = band.GetNoDataValue()
+        if nodata_value is not None:
+            band_data = band_data[band_data != nodata_value]  # Remove NoData values
+        else:
+            band_data = band_data[~np.isnan(band_data)]  # Remove NaN values
+        if band_data.size == 0:
+            stats_list.append([None] * 8)
+            continue
+        # Compute all statistics efficiently in one pass
+        # min_val = np.min(band_data)
+        # max_val = np.max(band_data)
+        mean_val = np.mean(band_data)
+        # median_val = np.median(band_data)
+        std_val = np.std(band_data)
+        min_val, first_quantile, median_val, third_quantile, max_val = np.percentile(band_data, [0, 25, 50, 75, 100])
+        stats = (band_name, mean_val, std_val, min_val, first_quantile, median_val, third_quantile, max_val)
+        stats_list.append(stats)
+    ds = None  # Close dataset
+    return stats_list
