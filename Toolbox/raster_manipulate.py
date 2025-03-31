@@ -250,6 +250,7 @@ def change_detect(base_img_path, img2_path, output_path, method="PER"):
         out_band = out_ds.GetRasterBand(band_idx)
         out_band.WriteArray(percentage_change)
         out_band.SetNoDataValue(np.nan)  # Set NoData value
+        out_band.SetDescription(band1.GetDescription())
         out_band.FlushCache()
     
     # Close datasets
