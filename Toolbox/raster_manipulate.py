@@ -106,6 +106,27 @@ def affine_trans(homography, points1, points2, in_dataset, target_projection, ta
         out_band.FlushCache()
     return out_dataset
 
+def DS2RGB(dataset, rgb_serial):
+    # Retrieve the first band for nodata info and (if needed) for grayscale data.
+    rgb_image = dataset.GetRasterBand(1)
+    nodata = rgb_image.GetNoDataValue()
+    rgb_image = rgb_image.ReadAsArray()
+    # Create nodata (alpha) mask from the first band.
+    if nodata is not None:
+        alpha_mask = np.where(rgb_image == nodata, 0, 255).astype(np.uint8)
+    else:
+        alpha_mask = np.full(rgb_image.shape, 255, dtype=np.uint8)
+
+    # Get the shape (height, width) from the first band.
+    height, width = rgb_image.shape
+    # Initialize an empty RGB image array.
+    rgb_image = np.zeros((height, width, 3), dtype=np.uint8)
+    # Assign each channel in the RGB image based on the provided band names.
+    for i, band_i in enumerate(rgb_serial):
+        this_band = dataset.GetRasterBand(band_i)
+        rgb_image[:, :, i] = cv2.normalize(this_band.ReadAsArray(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, mask = alpha_mask)
+    return rgb_image, alpha_mask
+
 def BGR2GRAY(dataset, rgb_serial):
     # Retrieve the first band for nodata info and (if needed) for grayscale data.
     rgb_image = dataset.GetRasterBand(1)
