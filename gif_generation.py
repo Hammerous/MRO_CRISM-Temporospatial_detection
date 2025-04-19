@@ -6,9 +6,18 @@ import numpy as np
 from Toolbox.raster_manipulate import DS2RGB
 
 # --- Parameters ---
-csv_file = r"CRISM_Metadata_Database\15-0.csv"            # Path to CSV file
-input_folder = r"Round2_trimed\15-0"                # Folder containing the original TIFFs
+#red_band_name   = "R3920"
+red_band_name   = "BD1900_2"
+green_band_name = "BD1500_2"
+blue_band_name  = "BD1435"
+
+folder_name = "7-0"
+gif_name = "ICE_animated.gif"
+
+csv_file = os.path.join("CRISM_Metadata_Database", f"{folder_name}.csv")
+input_folder = os.path.join("Round2_trimed", folder_name)
 output_folder = os.path.join(input_folder, "output")
+
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
@@ -16,10 +25,6 @@ if not os.path.exists(output_folder):
 # red_band_name   = "SINDEX2"
 # green_band_name = "BD2100_2"
 # blue_band_name  = "BD1900_2" 
-
-red_band_name   = "R3920"
-green_band_name = "BD1500_2"
-blue_band_name  = "BD1435"
 rgb_lst = [red_band_name, green_band_name, blue_band_name]
 
 # ----------------------------------------------------
@@ -65,7 +70,7 @@ for pid in product_ids:
 
     # --- 1. grab the UTCstart string that belongs to this ProductId ---
     row = df.loc[df["ProductId"] == pid].iloc[0]          # row is a Series
-    label_text = f"UTCstart: {row['UTCstart'].split('T')[0]}  \nSolLong: {row['SolLong']:.2f}"
+    label_text = f"UTCstart: {row['UTCstart'].split('T')[0]}\nSolLong: {row['SolLong']:.2f}\nInAngle: {row['InAngle']:.2f}"
 
     # --- 2. draw it on the RGB image ---
     rgb_img = Image.fromarray(rgb, mode="RGB")
@@ -125,7 +130,7 @@ for pid in product_ids:
 
 # ---------------- Assemble GIF with custom ffmpeg pipeline -----------
 if saved_files:
-    gif_path = os.path.join(input_folder, "animated.gif")
+    gif_path = os.path.join(input_folder, gif_name)
     print("[INFO] Creating high-quality GIF with palette optimization...")
 
     # Build ffmpeg command dynamically
