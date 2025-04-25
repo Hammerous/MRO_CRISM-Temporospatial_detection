@@ -3,7 +3,7 @@ import Toolbox.graph_process as gph
 import pandas as pd
 import os
 
-shp_file = r"mars_mro_crism_mtrdr_c0a\mars_mro_crism_mtrdr_c0a.shp"
+shp_file = r"InAngle65_intsct.shp"
 cols = ['ProductId', 'geometry']
 
 if __name__ == "__main__":

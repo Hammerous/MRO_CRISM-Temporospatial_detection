@@ -4,16 +4,16 @@ import Toolbox.raster_manipulate as rst
 import multiprocessing as mp
 from tqdm import tqdm
 
-pair_txt = 'merged_2.txt'
+pair_txt = 'merged.txt'
 trg_dir = "Round2"
-src_dir = "Clipped_Images"
+src_dir = r"H:\MRTR_Clipped"
 os.makedirs(trg_dir, exist_ok=True)
 warp_serial = (59, 58, 57)      # ('R2529', 'R1506', 'R1080')
 
 def georeferencing(ROI_id, base_img, warp_img):
     # Step 1: Read the images
-    base_img_data = rst.open_img(os.path.join(src_dir + f"/{ROI_id}", base_img + ".img"))
-    img2prj = rst.open_img(os.path.join(src_dir + f"/{ROI_id}", warp_img + ".img"))
+    base_img_data = rst.open_img(os.path.join(src_dir + f"/{ROI_id}", base_img + ".tif"))
+    img2prj = rst.open_img(os.path.join(src_dir + f"/{ROI_id}", warp_img + ".tif"))
     img1_gray, img1_alpha = rst.BGR2GRAY(base_img_data, warp_serial)
     img2_gray, img2_alpha = rst.BGR2GRAY(img2prj, warp_serial)
 

@@ -2,7 +2,7 @@ import pandas as pd
 import geopandas as gpd
 from Toolbox.file_manage import reverse_pid, convert_pid
 
-txt_path = "merged.txt"
+txt_path = "IMG2SHP_results.txt"
 shp_path = r"mars_mro_crism_mtrdr_c0a\mars_mro_crism_mtrdr_c0a.shp"
 output_dir = "CRISM_Metadata_Database"
 
@@ -29,6 +29,7 @@ if __name__ == "__main__":
     # Merge the attributes from the shapefile to df_groups based on 'ProductId'
     merged_df = df_groups.merge(gdf, on='ProductId', how='left')
     #merged_df.drop(columns=['geometry'], inplace=True)
+    
     # Step 3: Re-arrange each group dataframe by 'UTCstart'
     if 'UTCstart' in merged_df.columns:
         merged_df = merged_df.sort_values(by='UTCstart')

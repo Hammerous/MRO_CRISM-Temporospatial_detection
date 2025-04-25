@@ -7,7 +7,7 @@ from collections import defaultdict
 
 pair_txt = 'CRISM_Metadata_Database.txt'
 pair_folder = 'CRISM_Metadata_Database'
-base_dir = "Round2_trimed"
+base_dir = r"G:\MTRDR_retrimed"
 trg_dir = "Change_Detect"
 
 # Define column names based on freq_summary output

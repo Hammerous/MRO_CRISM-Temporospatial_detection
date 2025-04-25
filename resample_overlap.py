@@ -4,8 +4,8 @@ import multiprocessing as mp
 from tqdm import tqdm
 
 pair_txt = 'CRISM_Metadata_Database.txt'
-trg_dir = "Round2"
-src_dir = "MRTR_Clipped"
+trg_dir = r"G:\MTRDR_resample"
+src_dir = r"H:\MRTR_Clipped"
 os.makedirs(trg_dir, exist_ok=True)
 
 def worker(args):

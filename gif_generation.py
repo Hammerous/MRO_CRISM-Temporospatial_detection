@@ -7,24 +7,24 @@ from Toolbox.raster_manipulate import DS2RGB
 
 # --- Parameters ---
 #red_band_name   = "R3920"
-red_band_name   = "BD1900_2"
-green_band_name = "BD1500_2"
-blue_band_name  = "BD1435"
+# red_band_name   = "BD1900_2"
+# green_band_name = "BD1500_2"
+# blue_band_name  = "BD1435"
 
-folder_name = "7-0"
-gif_name = "ICE_animated.gif"
+folder_name = "3-297"
+gif_name = "Hydrate_animated.gif"
 
 csv_file = os.path.join("CRISM_Metadata_Database", f"{folder_name}.csv")
-input_folder = os.path.join("Round2_trimed", folder_name)
+input_folder = os.path.join(r"G:\MTRDR_retrimed", folder_name)
 output_folder = os.path.join(input_folder, "output")
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 ## ---------------- Band definitions ------------------
-# red_band_name   = "SINDEX2"
-# green_band_name = "BD2100_2"
-# blue_band_name  = "BD1900_2" 
+red_band_name   = "SINDEX2"
+green_band_name = "BD2100_2"
+blue_band_name  = "BD1900_2" 
 rgb_lst = [red_band_name, green_band_name, blue_band_name]
 
 # ----------------------------------------------------

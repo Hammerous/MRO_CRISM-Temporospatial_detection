@@ -2,8 +2,8 @@ import Toolbox.shp_process as shp
 import multiprocessing as mp
 import os, hashlib
 
-raster_grouped = "mars_mro_crism_mtrdr_c0a.csv"
-input_folder = r"G:\MRTR_SR"
+raster_grouped = "InAngle65_intsct.csv"
+input_folder = r"H:\MRTR_SR"
 output_folder = "IMG2SHP"
 
 if __name__ == "__main__":

@@ -123,8 +123,25 @@ def DS2RGB(dataset, rgb_serial):
     rgb_image = np.zeros((height, width, 3), dtype=np.uint8)
     # Assign each channel in the RGB image based on the provided band names.
     for i, band_i in enumerate(rgb_serial):
-        this_band = dataset.GetRasterBand(band_i)
-        rgb_image[:, :, i] = cv2.normalize(this_band.ReadAsArray(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, mask = alpha_mask)
+        band = dataset.GetRasterBand(band_i)
+        nodata_value = band.GetNoDataValue()
+        band_data = band.ReadAsArray()
+        if nodata_value is not None:
+            band_data = band_data[band_data != nodata_value]  # Remove NoData values
+        else:
+            band_data = band_data[~np.isnan(band_data)]  # Remove NaN values
+        upper = np.percentile(band_data, 99.9)
+
+        band_data = band.ReadAsArray()
+        rgb_image[:, :, i] = cv2.normalize(band_data, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, mask = alpha_mask)
+        # Clip values: lower than 0 -> 0, higher than upper -> upper
+        band_data_clipped = np.clip(band_data, 0, upper)
+        # Normalize manually: scale [0, upper] to [0, 255]
+        band_data_norm = (band_data_clipped / upper) * 255
+        band_data_norm = band_data_norm.astype(np.uint8)
+        # Apply alpha_mask
+        band_data_norm[alpha_mask == 0] = 0
+        rgb_image[:, :, i] = band_data_norm
     return rgb_image, alpha_mask
 
 def BGR2GRAY(dataset, rgb_serial):

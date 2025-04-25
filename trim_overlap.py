@@ -3,7 +3,7 @@ import Toolbox.raster_manipulate as rst
 import multiprocessing as mp
 from tqdm import tqdm
 
-pair_txt = 'merged.txt'
+pair_txt = 'IMG2SHP_results.txt'
 trg_dir = r"G:\MRTR_Clipped"
 raster_dir = r"G:\MRTR_SR"
 shp_dir = r"Buffers"
@@ -23,6 +23,7 @@ if __name__ == "__main__":
         for line in in_f:
             ROI_id, base_img, warp_img_lst = line.split()
             folder_path = os.path.join(trg_dir, ROI_id)
+            #sub_raster_dir = os.path.join(raster_dir, ROI_id)
             os.makedirs(folder_path, exist_ok=True)
             shp_path = os.path.join(shp_dir, ROI_id+".shp")
             task_lst.extend([(shp_path, os.path.join(raster_dir, warp_img+".img"), os.path.join(folder_path, warp_img+".tif")) for warp_img in warp_img_lst.split(",")])
