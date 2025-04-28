@@ -327,3 +327,62 @@ def freq_summary(img_path):
         stats_list.append(stats)
     ds = None  # Close dataset
     return stats_list
+
+def freq_cutoff(img_path, output_path, upper_cutoffs):
+    """
+    Open a raster, apply floor=0 and per-band upper cutoff,
+    and return a modified GDAL in-memory dataset.
+    
+    Parameters
+    ----------
+    img_path : str
+        Path to the input raster.
+    output_path (str): 
+        Path to save the output raster.
+    upper_cutoffs : dict
+        Mapping from band_name (str) to maximum valid value (float).
+    
+    Returns
+    -------
+    gdal.Dataset
+        Modified dataset with masked values applied.
+    """
+    src_ds = gdal.Open(img_path, gdal.GA_ReadOnly)
+    if src_ds is None:
+        raise IOError(f"Could not open dataset: {img_path}")
+
+    # Read spatial reference and geotransform for copying
+    geotransform = src_ds.GetGeoTransform()
+    projection = src_ds.GetProjection()
+    driver = gdal.GetDriverByName('GTiff')  # GeoTIFF dataset
+
+    # Create output raster
+    out_ds = driver.Create(output_path, src_ds.RasterXSize, src_ds.RasterYSize, src_ds.RasterCount, gdal.GDT_Float32)
+    out_ds.SetGeoTransform(geotransform)
+    out_ds.SetProjection(projection)
+
+    for bidx in range(1, src_ds.RasterCount + 1):
+        src_band = src_ds.GetRasterBand(bidx)
+        band_data = src_band.ReadAsArray().astype(float)
+        nodata_value = src_band.GetNoDataValue()
+        if nodata_value is None:
+            raise ValueError("No data value NOT DEFINED !!!")
+        
+        band_name = src_band.GetDescription()
+
+        # Apply floor cutoff
+        mask = (band_data < 0)
+        
+        # Apply ceiling cutoff if available
+        if band_name in upper_cutoffs:
+            mask |= (band_data >= upper_cutoffs[band_name])
+        
+        band_data[mask] = nodata_value
+
+        # Write back into the new dataset
+        out_band = out_ds.GetRasterBand(bidx)
+        out_band.WriteArray(band_data)
+        out_band.SetDescription(band_name)
+        out_band.SetNoDataValue(nodata_value)
+
+    src_ds = None  # Close input dataset
