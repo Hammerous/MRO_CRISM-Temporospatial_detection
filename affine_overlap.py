@@ -8,7 +8,7 @@ pair_txt = 'merged.txt'
 trg_dir = "Round2"
 src_dir = r"H:\MRTR_Clipped"
 os.makedirs(trg_dir, exist_ok=True)
-warp_serial = (15, 15, 15)
+warp_serial = (56, 55, 11) #(R600, R530, R440)
 
 def georeferencing(ROI_id, base_img, warp_img):
     # Step 1: Read the images

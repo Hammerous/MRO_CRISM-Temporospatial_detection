@@ -7,5 +7,5 @@ def print_band_index_by_name(dataset):
         print("{0}: {1}".format(bidx, band_name))
     return None  # Not found
 
-ds = gdal.Open(r'H:\MRTR_Clipped\3-0\frt0000a8ce_07_sr166j_mtr3.tif')
+ds = gdal.Open(r'G:\MTRDR_filtered\3-0\frt0000a8ce_07_sr166j_mtr3.tif')
 index = print_band_index_by_name(ds)

@@ -111,11 +111,6 @@ def DS2RGB(dataset, rgb_serial):
     rgb_image = dataset.GetRasterBand(1)
     nodata = rgb_image.GetNoDataValue()
     rgb_image = rgb_image.ReadAsArray()
-    # Create nodata (alpha) mask from the first band.
-    if nodata is not None:
-        alpha_mask = np.where(rgb_image == nodata, 0, 255).astype(np.uint8)
-    else:
-        alpha_mask = np.full(rgb_image.shape, 255, dtype=np.uint8)
 
     # Get the shape (height, width) from the first band.
     height, width = rgb_image.shape
@@ -124,24 +119,9 @@ def DS2RGB(dataset, rgb_serial):
     # Assign each channel in the RGB image based on the provided band names.
     for i, band_i in enumerate(rgb_serial):
         band = dataset.GetRasterBand(band_i)
-        nodata_value = band.GetNoDataValue()
         band_data = band.ReadAsArray()
-        if nodata_value is not None:
-            band_data = band_data[band_data != nodata_value]  # Remove NoData values
-        else:
-            band_data = band_data[~np.isnan(band_data)]  # Remove NaN values
-        upper = np.percentile(band_data, 99.9)
-
-        band_data = band.ReadAsArray()
+        alpha_mask = np.where(band_data == nodata, 0, 255).astype(np.uint8)
         rgb_image[:, :, i] = cv2.normalize(band_data, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, mask = alpha_mask)
-        # Clip values: lower than 0 -> 0, higher than upper -> upper
-        band_data_clipped = np.clip(band_data, 0, upper)
-        # Normalize manually: scale [0, upper] to [0, 255]
-        band_data_norm = (band_data_clipped / upper) * 255
-        band_data_norm = band_data_norm.astype(np.uint8)
-        # Apply alpha_mask
-        band_data_norm[alpha_mask == 0] = 0
-        rgb_image[:, :, i] = band_data_norm
     return rgb_image, alpha_mask
 
 def BGR2GRAY(dataset, rgb_serial):
@@ -373,9 +353,8 @@ def freq_cutoff(img_path, output_path, upper_cutoffs):
         # Apply floor cutoff
         mask = (band_data < 0)
         
-        # Apply ceiling cutoff if available
-        if band_name in upper_cutoffs:
-            mask |= (band_data >= upper_cutoffs[band_name])
+        # Apply ceiling cutoff
+        mask |= (band_data > upper_cutoffs[band_name])
         
         band_data[mask] = nodata_value
 

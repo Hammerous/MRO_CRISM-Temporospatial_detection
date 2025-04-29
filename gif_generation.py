@@ -15,7 +15,7 @@ folder_name = "3-297"
 gif_name = "Hydrate_animated.gif"
 
 csv_file = os.path.join("CRISM_Metadata_Database", f"{folder_name}.csv")
-input_folder = os.path.join(r"G:\MTRDR_retrimed", folder_name)
+input_folder = os.path.join(r"G:\MTRDR_filtered", folder_name)
 output_folder = os.path.join(input_folder, "output")
 
 if not os.path.exists(output_folder):
