@@ -25,7 +25,7 @@ def save_gdal_dataset(dataset, out_filepath):
     # Properly close / flush
     out_ds = None
 
-def affine_trans(homography, points1, points2, in_dataset, target_projection, target_geotransform):
+def affine_trans(homography, points1, points2, in_dataset, target_projection, target_geotransform, valid_trans=20):
     x_size = in_dataset.RasterXSize
     y_size = in_dataset.RasterYSize
     num_bands = in_dataset.RasterCount
@@ -72,14 +72,12 @@ def affine_trans(homography, points1, points2, in_dataset, target_projection, ta
     rmse = np.sqrt(np.mean(residuals**2))
     print(f"Transformation Accuracy (RMSE): {rmse:.4f} pixels")
 
-    if rmse > 10:
+    if rmse > valid_trans:
         return False
 
     driver = gdal.GetDriverByName('MEM')  # In-memory dataset for output
     out_dataset = driver.Create('',new_width, new_height, num_bands, datatype)
-
-    if rmse > 10:
-        return False
+    
     new_geotransform = list(target_geotransform)
     # Shift in pixel space -> shift in georeferenced units
     # new X origin:
@@ -365,3 +363,54 @@ def freq_cutoff(img_path, output_path, upper_cutoffs):
         out_band.SetNoDataValue(nodata_value)
 
     src_ds = None  # Close input dataset
+
+def summary_bins(upper_cutoffs, band_lst, bin_num=100):
+    bin_matrix = []
+    max_bin = bin_num + 1
+    for band in band_lst:
+        max_val = upper_cutoffs[band]
+        bins = np.linspace(0, max_val, max_bin)
+        bin_matrix.append(bins)
+    return np.array(bin_matrix, dtype=np.float32)
+
+def freq_summary_binned(img_path, cutoff_arr):
+    """
+    Compute per-band histograms using pre-defined bins.
+    
+    Parameters
+    ----------
+    img_path : str
+        Path to the single-layer (multiband) image.
+    cutoff_arr : array_like, shape (n_bands, 101)
+        Pre-computed bin edges for each band (100 bins → 101 edges).
+        Row i corresponds to band index i+1 in the dataset.
+    
+    Returns
+    -------
+    hist_array : np.ndarray, shape (n_bands, 100)
+        Each row is the histogram counts for one band.
+    band_names : list of str
+        The GDAL band description for each band.
+    """
+    ds = gdal.Open(img_path)
+    if ds is None:
+        raise IOError(f"Could not open image at {img_path!r}")
+    
+    hist_array = np.zeros((cutoff_arr.shape[0], cutoff_arr.shape[1]-1), dtype=int)
+    
+    for band_idx in range(1, ds.RasterCount + 1):
+        band = ds.GetRasterBand(band_idx)
+        nodata = band.GetNoDataValue()
+        band = band.ReadAsArray()
+        # flatten and mask no-data / NaNs
+        data = band.flatten().astype(float)
+        data = data[data != nodata]
+        if data.size == 0:
+            continue
+        # select the pre-computed edges for this band
+        edges = cutoff_arr[band_idx - 1]
+        # compute histogram counts
+        counts, _ = np.histogram(data, bins=edges)
+        hist_array[band_idx - 1] = counts
+    ds = None  # close dataset
+    return hist_array
