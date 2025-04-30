@@ -40,3 +40,4 @@ Dust_Storm_Database/*
 *.docx
 *.jpeg
 *.qix
+!Parameters_Summary/percentile_summary.csv
