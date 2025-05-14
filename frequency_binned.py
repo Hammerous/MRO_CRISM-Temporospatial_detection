@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from Toolbox.raster_manipulate import summary_bins, freq_summary_binned
 from Toolbox.shp_process import open_csv
 import multiprocessing as mp
@@ -28,6 +30,34 @@ if __name__ == "__main__":
     cutoff_dict = cutoff_dict[['band_name', 'final_cutoff']].set_index(['band_name']).to_dict(index=True)['final_cutoff']
     cutoff_bins = summary_bins(cutoff_dict, band_lst)
     col_names = [f"bin_{i}" for i in range(1,101)]
+
+    '''
+    # Make the (60,100,2) sliding-window view
+    windows = sliding_window_view(cutoff_bins, window_shape=2, axis=1)
+    # windows.shape == (60, 100, 2)
+
+    # Convert each [a, b] into the string "a-b"
+    #    We'll do this row-wise with vectorized numpy string ops:
+    #    First split into two 60×100 arrays:
+    first_vals  = windows[..., 0]  # shape (60,100)
+    second_vals = windows[..., 1]  # shape (60,100)
+
+    # Convert to string dtype:
+    s1 = first_vals.astype(str)
+    s2 = second_vals.astype(str)
+
+    # Join with "-" between:
+    joined = np.char.add(np.char.add(s1, "-"), s2)
+    #    now `joined` is a (60,100) array of strings like "0-1","1-2",…
+    '''
+
+    joined = cutoff_bins[:, 1:]
+
+    # Build a DataFrame and save to CSV
+    cutoff_df = pd.DataFrame(joined)
+    cutoff_df['band_name'] = band_lst
+    cutoff_df.set_index('band_name', inplace=True)
+    cutoff_df.to_csv("pairs_60x100.csv", index=True, header=col_names)
 
     roi_to_paths = {}
 

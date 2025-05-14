@@ -7,14 +7,16 @@ from collections import defaultdict
 
 pair_txt = 'CRISM_Metadata_Database.txt'
 pair_folder = 'CRISM_Metadata_Database'
-base_dir = r"G:\MTRDR_retrimed"
+base_dir = r"G:\MTRDR_filtered"
 trg_dir = "Change_Detect"
 
 # Define column names based on freq_summary output
 freq_columns = [
     "band_name",
+    "count",
     "mean_val",
     "std_val",
+    "skewness",
     "min_val",
     "first_quantile",
     "median_val",

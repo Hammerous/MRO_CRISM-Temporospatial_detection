@@ -283,25 +283,23 @@ def freq_summary(img_path):
         band = ds.GetRasterBand(band_idx)
         band_data = band.ReadAsArray()
         band_name = band.GetDescription()
-        if band_data is None:
-            stats_list.append([None] * 8)
-            continue
         nodata_value = band.GetNoDataValue()
-        if nodata_value is not None:
-            band_data = band_data[band_data != nodata_value]  # Remove NoData values
-        else:
-            band_data = band_data[~np.isnan(band_data)]  # Remove NaN values
+        band_data = band_data[band_data != nodata_value]  # Remove NoData values
         if band_data.size == 0:
-            stats_list.append([None] * 8)
+            stats_list.append([band_name] + [0] * 9)
             continue
+        count = band_data.size
         # Compute all statistics efficiently in one pass
         # min_val = np.min(band_data)
         # max_val = np.max(band_data)
         mean_val = np.mean(band_data)
         # median_val = np.median(band_data)
         std_val = np.std(band_data)
+        skewness = np.nan
+        if std_val:
+            skewness = np.mean(((band_data - mean_val) / std_val) ** 3)  # Skewness: asymmetry of distribution
         min_val, first_quantile, median_val, third_quantile, max_val = np.percentile(band_data, [0, 25, 50, 75, 100])
-        stats = (band_name, mean_val, std_val, min_val, first_quantile, median_val, third_quantile, max_val)
+        stats = (band_name, count, mean_val, std_val, skewness, min_val, first_quantile, median_val, third_quantile, max_val)
         stats_list.append(stats)
     ds = None  # Close dataset
     return stats_list
@@ -396,14 +394,18 @@ def freq_summary_binned(img_path, cutoff_arr):
     if ds is None:
         raise IOError(f"Could not open image at {img_path!r}")
     
-    hist_array = np.zeros((cutoff_arr.shape[0], cutoff_arr.shape[1]-1), dtype=int)
+    hist_array = np.zeros((cutoff_arr.shape[0], cutoff_arr.shape[1]-1), dtype=float)
+
+    valid_band = ds.GetRasterBand(15) #R1330
+    nodata = valid_band.GetNoDataValue()
+    data = valid_band.ReadAsArray().flatten().astype(float)
+    data = data[data != nodata]
+    data_size_pct = data.size / 100
+    del valid_band
     
     for band_idx in range(1, ds.RasterCount + 1):
-        band = ds.GetRasterBand(band_idx)
-        nodata = band.GetNoDataValue()
-        band = band.ReadAsArray()
         # flatten and mask no-data / NaNs
-        data = band.flatten().astype(float)
+        data = ds.GetRasterBand(band_idx).ReadAsArray().flatten().astype(float)
         data = data[data != nodata]
         if data.size == 0:
             continue
@@ -411,6 +413,6 @@ def freq_summary_binned(img_path, cutoff_arr):
         edges = cutoff_arr[band_idx - 1]
         # compute histogram counts
         counts, _ = np.histogram(data, bins=edges)
-        hist_array[band_idx - 1] = counts
+        hist_array[band_idx - 1] = counts / data_size_pct
     ds = None  # close dataset
     return hist_array

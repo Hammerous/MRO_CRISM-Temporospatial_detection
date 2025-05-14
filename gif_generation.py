@@ -20,7 +20,9 @@ output_folder = os.path.join(input_folder, "output")
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
-
+# BD2355
+# D2300
+# BD2290
 ## ---------------- Band definitions ------------------
 red_band_name   = "SINDEX2"
 green_band_name = "BD2100_2"
