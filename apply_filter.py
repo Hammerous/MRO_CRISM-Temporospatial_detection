@@ -1,5 +1,5 @@
 import os
-import Toolbox.raster_manipulate as rst
+from Toolbox.raster_manipulate import freq_cutoff
 from Toolbox.shp_process import open_csv
 import multiprocessing as mp
 from tqdm import tqdm
@@ -15,7 +15,7 @@ def worker(task):
     This function simply unpacks the arguments from the tuple and calls rst.shp_cut_raster
     """
     img_path_input, img_path_output, cutoff_dict = task
-    rst.freq_cutoff(img_path_input, img_path_output, cutoff_dict)
+    freq_cutoff(img_path_input, img_path_output, cutoff_dict)
     return 
 
 if __name__ == "__main__":

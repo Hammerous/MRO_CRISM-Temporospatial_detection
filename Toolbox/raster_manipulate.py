@@ -70,8 +70,10 @@ def affine_trans(homography, points1, points2, in_dataset, target_projection, ta
     transformed_points2[:, :2] /= transformed_points2[:, 2:3]
     residuals = np.linalg.norm(points1 - transformed_points2[:, :2], axis=1)
     rmse = np.sqrt(np.mean(residuals**2))
-    print(f"Transformation Accuracy (RMSE): {rmse:.4f} pixels")
-
+    #print(f"Transformation Accuracy (RMSE): {rmse:.4f} pixels")
+    #print(f"Count: {points2_h.shape[0]}; RMSE: {rmse:.4f}; MAX: {np.max(residuals):.4f}")
+    return points2_h.shape[0], rmse, np.max(residuals)
+                                                               
     if rmse > valid_trans:
         return False
 
@@ -304,6 +306,8 @@ def freq_summary(img_path):
     ds = None  # Close dataset
     return stats_list
 
+
+lower_cutoffs = {'R530','R440', 'R600', 'R770', 'R1080', 'R1506', 'R2529', 'R3920', 'SH600_2', 'R1300', 'ISLOPE1', 'IRR2'}
 def freq_cutoff(img_path, output_path, upper_cutoffs):
     """
     Open a raster, apply floor=0 and per-band upper cutoff,
@@ -346,8 +350,11 @@ def freq_cutoff(img_path, output_path, upper_cutoffs):
         
         band_name = src_band.GetDescription()
 
+        lower_cutoff_val = 0
+        if band_name in lower_cutoffs:
+            lower_cutoff_val = np.percentile(band_data, [0.1])
         # Apply floor cutoff
-        mask = (band_data < 0)
+        mask = (band_data < lower_cutoff_val)
         
         # Apply ceiling cutoff
         mask |= (band_data > upper_cutoffs[band_name])

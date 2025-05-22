@@ -11,7 +11,7 @@ import pandas as pd
 # -------------------------------------------------------------------- #
 # Paths                                                                #
 # -------------------------------------------------------------------- #
-SOURCE_FILE = Path(r"./mineral_summary_modified.csv")
+SOURCE_FILE = Path(r"./mineral_summary.csv")
 OUTPUT_FILE1 = Path(r"./mineral_variability.csv")
 OUTPUT_FILE2 = Path(r"./mineral_time_intervals.csv")
 

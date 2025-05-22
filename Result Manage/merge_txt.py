@@ -1,4 +1,4 @@
-minimun_views = 5
+minimun_views = 4
 
 def process_files(input_files, output_file):
     with open(output_file, 'w', encoding='utf-8') as out_f:

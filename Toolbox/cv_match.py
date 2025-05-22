@@ -87,6 +87,7 @@ def denseSIFT(img1, valid_mask1, img2, valid_mask2,
             points1, points2 = points1[mask], points2[mask]
             filtered_matches = [m for i, m in enumerate(filtered_matches) if mask[i]]
     else:
+        return None,None,None,False
         raise ValueError("Insufficient matches for RANSAC filtering.")
     
     # Remove duplicates
@@ -101,5 +102,5 @@ def denseSIFT(img1, valid_mask1, img2, valid_mask2,
                                       flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         cv2.imwrite(output_file_name+'.png', img_matches)
 
-    return homography, points1, points2
+    return homography, points1, points2, True
 

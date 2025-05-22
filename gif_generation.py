@@ -24,9 +24,9 @@ if not os.path.exists(output_folder):
 # D2300
 # BD2290
 ## ---------------- Band definitions ------------------
-red_band_name   = "SINDEX2"
-green_band_name = "BD2100_2"
-blue_band_name  = "BD1900_2" 
+red_band_name   = "ISLOPE1"
+green_band_name = "BD3000"
+blue_band_name  = "IRR2"
 rgb_lst = [red_band_name, green_band_name, blue_band_name]
 
 # ----------------------------------------------------
